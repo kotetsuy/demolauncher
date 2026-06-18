@@ -11,6 +11,25 @@ from pathlib import Path
 
 HOME = Path.home()
 
+# 単一インスタンス用のロックソケット。abstract namespace に bind し、
+# プロセス終了時に OS が自動で解放するためロックファイルの残骸が残らない。
+_SINGLE_INSTANCE_ADDR = "\0demo_launcher_single_instance"
+_instance_lock_socket: socket.socket | None = None
+
+
+def acquire_single_instance() -> bool:
+    """既に別のランチャーが起動していれば False、確保できれば True。"""
+    global _instance_lock_socket
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        s.bind(_SINGLE_INSTANCE_ADDR)
+    except OSError:
+        s.close()
+        return False
+    # GC で閉じられないよう参照を保持する。
+    _instance_lock_socket = s
+    return True
+
 # 各デモのメタデータ。
 #   dir          : start_all.sh / stop_all.sh のあるディレクトリ
 #   ports        : このデモが bind する Web ポート（停止後の解放待ちに使う）
@@ -361,5 +380,10 @@ def main(page: ft.Page):
     # DISPLAY が無い環境では子プロセスの Chrome が黙って失敗するため警告する（BUG-4）。
     if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         set_status("警告: DISPLAY が無いため Chrome が開けない可能性があります", "#ef5350")
+
+if not acquire_single_instance():
+    # 既に別のランチャーが動いているので二重起動せず終了する。
+    print("Demo Launcher は既に起動しています。多重起動はできません。")
+    raise SystemExit(0)
 
 ft.run(main)
