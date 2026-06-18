@@ -35,6 +35,19 @@ DEMOS = {
         "ready_url": "http://localhost:8000/",
         "ready_timeout": 180,
     },
+    "EarthTourGuide": {
+        "dir": HOME / "EarthTourGuide",
+        "ports": [8000, 8001, 8002, 8003, 8080],
+        # three-vrm の /status は llama ロード後に立つので起動完了の目安になる。
+        "ready_url": "http://localhost:8000/status",
+        "ready_timeout": 600,
+    },
+    "AI2048": {
+        "dir": HOME / "AI2048",
+        "ports": [8000, 8009, 8080, 9222],
+        "ready_url": "http://localhost:8000/status",
+        "ready_timeout": 600,
+    },
 }
 
 # 走行中の start_all.sh を name -> Popen で覚えておく（BUG-3: ゾンビ起動スクリプト対策）。
@@ -180,7 +193,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#1a1a2e"
     page.window.width = 460
-    page.window.height = 580
+    page.window.height = 720
     page.padding = 30
 
     status = ft.Text(
@@ -328,6 +341,8 @@ def main(page: ft.Page):
                 btn("AIassistant を起動",       make_start_handler("AIassistant"),      "#2e7d32", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("LLaVA を起動",         make_start_handler("LLaVA"),        "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("RealtimeDepth を起動", make_start_handler("RealtimeDepth"), "#6a1b9a", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("EarthTourGuide を起動", make_start_handler("EarthTourGuide"), "#00838f", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("AI2048 を起動",        make_start_handler("AI2048"),         "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
 
                 ft.Divider(color="#333355", height=24),
 
