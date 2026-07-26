@@ -42,9 +42,11 @@ DEMOS = {
         "ready_url": "http://localhost:8000/status",
         "ready_timeout": 600,
     },
-    "LLaVA": {
-        "dir": HOME / "LLaVA",
-        "ports": [8080, 8081],
+    # 旧 ~/LLaVA (kotetsuy/LLaVA) ではなく NPU 版が現行。YOLO は XDNA2 NPU の
+    # サイドカー (config.yaml の npu.port = 8082) で回すのでポートが 1 つ増える。
+    "LLaVA-NPU": {
+        "dir": HOME / "LLaVA-NPU",
+        "ports": [8080, 8081, 8082],
         "ready_url": "http://localhost:8080/",
         "ready_timeout": 120,
     },
@@ -358,7 +360,7 @@ def main(page: ft.Page):
                 ft.Divider(color="#333355", height=24),
 
                 btn("AIassistant を起動",       make_start_handler("AIassistant"),      "#2e7d32", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("LLaVA を起動",         make_start_handler("LLaVA"),        "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("LLaVA-NPU を起動",     make_start_handler("LLaVA-NPU"),    "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("RealtimeDepth を起動", make_start_handler("RealtimeDepth"), "#6a1b9a", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("EarthTourGuide を起動", make_start_handler("EarthTourGuide"), "#00838f", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("AI2048 を起動",        make_start_handler("AI2048"),         "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
