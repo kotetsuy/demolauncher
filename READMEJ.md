@@ -42,7 +42,7 @@ English versions: [`README.md`](./README.md) / [`TECHNICAL.md`](./TECHNICAL.md)
 |---|---|
 | マシン | NucBox EVO X2 (AMD Ryzen AI MAX+ 395, gfx1151, 48GB unified) |
 | OS | Ubuntu 26.04 (resolute) |
-| Python | 3.14 (システム標準) |
+| Python | 3.14。ただしシステム標準ではなくプロジェクト内の `.venv` を使う |
 | GUI | flet 0.86.x (`flet[all]`) |
 | ROCm | 7.14 (`/opt/rocm`) — ランチャー自体は非依存、各デモが使用 |
 | デスクトップ | GNOME (Wayland)。`DISPLAY` または `WAYLAND_DISPLAY` が必要 |
@@ -54,29 +54,56 @@ ROCm のバージョンを上げてもこのツールの改修は不要。
 
 ## セットアップ
 
-### 1. flet のインストール
+### 1. venv の作成と flet のインストール
 
 Ubuntu 26.04 のシステム Python 3.14 は PEP 668 の `EXTERNALLY-MANAGED` 扱いで、
-`ensurepip` も無効化されている。`uv` からユーザー領域へ直接入れるのが確実:
+`ensurepip` も無効化されている。ランチャーは専用の venv から起動する:
 
 ```bash
-uv pip install --python /usr/bin/python3 \
-  --target ~/.local/lib/python3.14/site-packages "flet[all]"
+cd ~/demolauncher
+uv venv --python 3.14 .venv
+uv pip install --python .venv/bin/python "flet[all]"
 ```
-
-`--target` に指定するパスは `python3 -c "import site; print(site.getusersitepackages())"`
-が返す値と一致させること。これで `python3` から追加設定なしで import できる。
 
 確認:
 
 ```bash
-python3 -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.2
+.venv/bin/python -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.5
 ```
 
 > `flet` 単体ではなく `flet[all]` を入れること。デスクトップウィンドウの描画に
 > `flet_desktop` が必要で、素の `flet` には含まれていない。
 
-### 2. 電源オフの sudoers 設定（初回のみ）
+`.venv` は gitignore 済みなので、clone し直した環境ではこの手順をやり直す必要がある。
+
+ユーザー領域ではなく venv を使う理由は、次の OS アップグレードに耐えるのは
+ランチャー専用のインタプリタに固定する方式だから。24.04 → 26.04 のアップグレードで
+このツールは一度壊れている。flet を `/usr/local/lib/python3.12/dist-packages` に
+pip で入れていたため、`python3` が 3.14 になった時点で 3.12 のツリーごと
+見えなくなった。このマシンの他プロジェクト（`~/AI2048`、`~/LLaVA-NPU`）も
+同じ理由で venv を使っている。
+
+### 2. デスクトップエントリを venv に向ける
+
+`~/.local/share/applications/demo-launcher.desktop` は `python3` ではなく
+venv のインタプリタを呼ぶこと:
+
+```ini
+Exec=/home/test/demolauncher/.venv/bin/python /home/test/demolauncher/demo_launcher.py
+```
+
+パスは 2 つとも絶対パスで書くこと（デスクトップエントリは `~` を展開しない）。
+なお NucBox 上の作業コピーは `~/demolauncher` ではなく `~/demolanucher`（綴り違い）に
+置かれているため、実機の `Exec` 行は `/home/test/demolanucher/...` になる。
+貼り付ける前に `pwd` で確認すること。
+
+編集後はデスクトップデータベースを更新する:
+
+```bash
+update-desktop-database ~/.local/share/applications
+```
+
+### 3. 電源オフの sudoers 設定（初回のみ）
 
 GUI にはパスワード入力手段が無いため、`shutdown` を NOPASSWD にしておく:
 
@@ -94,8 +121,11 @@ sudo bash setup_sudoers.sh
 
 ```bash
 cd ~/demolauncher
-python3 demo_launcher.py
+.venv/bin/python demo_launcher.py
 ```
+
+GNOME のアプリ一覧から「Demo Launcher」を選んでもよい。デスクトップエントリ経由で
+同じコマンドが実行される。
 
 - **各デモのボタン** — 全デモを停止 → ポート解放を待つ → 対象を起動 → ready まで待機。
   同じボタンを 2 回押しても問題ない（自分自身も停止対象に含まれる）
@@ -114,8 +144,12 @@ python3 demo_launcher.py
 
 ### `ModuleNotFoundError: No module named 'flet'`
 
-flet が Python 3.14 のユーザー領域に入っていない。上記「1. flet のインストール」を実行する。
-古い `~/.local/lib/python3.12/site-packages` にある flet は Python 3.14 からは見えない。
+`.venv/bin/python demo_launcher.py` ではなく `python3 demo_launcher.py` を実行している。
+flet は `.venv` の中にしか入っておらず、システムの Python 3.14 には入れない方針。
+venv 自体が無い場合（clone 直後など）は上記「1. venv の作成と flet のインストール」を実行する。
+
+デスクトップエントリから起動して同じエラーが出る場合は、`Exec` 行が `python3` のまま。
+「2. デスクトップエントリを venv に向ける」を参照。
 
 ### 「警告: DISPLAY が無いため Chrome が開けない可能性があります」
 

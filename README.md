@@ -46,7 +46,7 @@ only invokes those two shell scripts; it knows nothing about what the demos do.
 |---|---|
 | Machine | NucBox EVO X2 (AMD Ryzen AI MAX+ 395, gfx1151, 48GB unified) |
 | OS | Ubuntu 26.04 (resolute) |
-| Python | 3.14 (system interpreter) |
+| Python | 3.14, in a project venv at `.venv` (not the system interpreter) |
 | GUI | flet 0.86.x (`flet[all]`) |
 | ROCm | 7.14 (`/opt/rocm`) — used by the demos, not by the launcher |
 | Desktop | GNOME (Wayland). `DISPLAY` or `WAYLAND_DISPLAY` must be set |
@@ -58,30 +58,56 @@ starts use ROCm, so upgrading ROCm requires no change to this tool.
 
 ## Setup
 
-### 1. Install flet
+### 1. Create the venv and install flet
 
 Ubuntu 26.04's system Python 3.14 is marked `EXTERNALLY-MANAGED` (PEP 668) and
-`ensurepip` is disabled, so install into the user site directory with `uv`:
+`ensurepip` is disabled, so the launcher runs from its own venv:
 
 ```bash
-uv pip install --python /usr/bin/python3 \
-  --target ~/.local/lib/python3.14/site-packages "flet[all]"
+cd ~/demolauncher
+uv venv --python 3.14 .venv
+uv pip install --python .venv/bin/python "flet[all]"
 ```
-
-The `--target` path must match what
-`python3 -c "import site; print(site.getusersitepackages())"` prints. Then
-`python3` picks it up with no further configuration.
 
 Verify:
 
 ```bash
-python3 -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.2
+.venv/bin/python -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.5
 ```
 
 > Install `flet[all]`, not plain `flet`. Rendering the desktop window needs
 > `flet_desktop`, which the base package does not include.
 
-### 2. Configure sudoers for power-off (once)
+`.venv` is gitignored, so a fresh clone has to run this step again.
+
+Why a venv rather than the user site directory: pinning the launcher to an
+interpreter it owns is what survives the next release upgrade. The 24.04 → 26.04
+upgrade already broke this tool once — flet had been pip-installed into
+`/usr/local/lib/python3.12/dist-packages`, and when `python3` became 3.14 the
+whole 3.12 tree stopped being visible. Every other project on this machine
+(`~/AI2048`, `~/LLaVA-NPU`) uses a venv for the same reason.
+
+### 2. Point the desktop entry at the venv
+
+`~/.local/share/applications/demo-launcher.desktop` must invoke the venv
+interpreter, not `python3`:
+
+```ini
+Exec=/home/test/demolauncher/.venv/bin/python /home/test/demolauncher/demo_launcher.py
+```
+
+Both paths must be absolute — the desktop entry does not expand `~`. Note that
+on the NucBox the working copy sits in `~/demolanucher` (misspelled), not
+`~/demolauncher`, so the `Exec` line there reads `/home/test/demolanucher/...`.
+Check with `pwd` before pasting.
+
+After editing, refresh the desktop database:
+
+```bash
+update-desktop-database ~/.local/share/applications
+```
+
+### 3. Configure sudoers for power-off (once)
 
 The GUI has no way to prompt for a password, so make `shutdown` NOPASSWD:
 
@@ -99,8 +125,11 @@ status line rather than silently doing nothing.
 
 ```bash
 cd ~/demolauncher
-python3 demo_launcher.py
+.venv/bin/python demo_launcher.py
 ```
+
+Or launch "Demo Launcher" from the GNOME application grid, which runs the same
+command via the desktop entry.
 
 - **Demo buttons** — stop every demo, wait for the ports to be released, start
   the target, then wait until it is ready. Pressing the same button twice is
@@ -123,9 +152,13 @@ status 0.
 
 ### `ModuleNotFoundError: No module named 'flet'`
 
-flet is not installed in Python 3.14's user site directory — see
-"1. Install flet" above. A flet living in the old
-`~/.local/lib/python3.12/site-packages` is invisible to Python 3.14.
+You ran `python3 demo_launcher.py` instead of `.venv/bin/python
+demo_launcher.py`. flet is only installed inside `.venv`; the system Python 3.14
+does not have it and is not meant to. If the venv itself is missing (fresh
+clone), see "1. Create the venv and install flet" above.
+
+The same error from the desktop entry means its `Exec` line still says
+`python3` — see "2. Point the desktop entry at the venv".
 
 ### "警告: DISPLAY が無いため Chrome が開けない可能性があります"
 
