@@ -43,7 +43,7 @@ English versions: [`README.md`](./README.md) / [`TECHNICAL.md`](./TECHNICAL.md)
 | マシン | NucBox EVO X2 (AMD Ryzen AI MAX+ 395, gfx1151, 48GB unified) |
 | OS | Ubuntu 26.04 (resolute) |
 | Python | 3.14。ただしシステム標準ではなくプロジェクト内の `.venv` を使う |
-| GUI | flet 0.86.x (`flet[all]`) |
+| GUI | flet 0.86.x (`flet` + `flet-desktop`) |
 | ROCm | 7.14 (`/opt/rocm`) — ランチャー自体は非依存、各デモが使用 |
 | デスクトップ | GNOME (Wayland)。`DISPLAY` または `WAYLAND_DISPLAY` が必要 |
 
@@ -60,9 +60,10 @@ Ubuntu 26.04 のシステム Python 3.14 は PEP 668 の `EXTERNALLY-MANAGED` �
 `ensurepip` も無効化されている。ランチャーは専用の venv から起動する:
 
 ```bash
+uv python install 3.14
 cd ~/demolauncher
-uv venv --python 3.14 .venv
-uv pip install --python .venv/bin/python "flet[all]"
+uv venv --managed-python --python 3.14 .venv
+uv pip install --python .venv/bin/python flet flet-desktop
 ```
 
 確認:
@@ -71,8 +72,9 @@ uv pip install --python .venv/bin/python "flet[all]"
 .venv/bin/python -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.5
 ```
 
-> `flet` 単体ではなく `flet[all]` を入れること。デスクトップウィンドウの描画に
-> `flet_desktop` が必要で、素の `flet` には含まれていない。
+> `flet-desktop` は明示的に入れること。デスクトップウィンドウの描画に必要で、
+> 省略すると素の `flet` が初回起動時にダウンロードを試み、ドックから起動した
+> 場合に無言で失敗する。
 
 `.venv` は gitignore 済みなので、clone し直した環境ではこの手順をやり直す必要がある。
 
@@ -82,6 +84,11 @@ uv pip install --python .venv/bin/python "flet[all]"
 pip で入れていたため、`python3` が 3.14 になった時点で 3.12 のツリーごと
 見えなくなった。このマシンの他プロジェクト（`~/AI2048`、`~/LLaVA-NPU`）も
 同じ理由で venv を使っている。
+
+`/usr/bin/python3.14` ではなく `uv` 管理のインタプリタを使う理由は、システムの
+Python にリンクした venv では対策が中途半端だから。次のアップグレードで
+`/usr/bin/python3.x` が入れ替わると venv のシンボリックリンクが切れ、同じ壊れ方を
+繰り返す。`~/.local/share/uv/python` 配下の管理インタプリタはその影響を受けない。
 
 ### 2. デスクトップエントリを venv に向ける
 

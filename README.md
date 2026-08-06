@@ -47,7 +47,7 @@ only invokes those two shell scripts; it knows nothing about what the demos do.
 | Machine | NucBox EVO X2 (AMD Ryzen AI MAX+ 395, gfx1151, 48GB unified) |
 | OS | Ubuntu 26.04 (resolute) |
 | Python | 3.14, in a project venv at `.venv` (not the system interpreter) |
-| GUI | flet 0.86.x (`flet[all]`) |
+| GUI | flet 0.86.x (`flet` + `flet-desktop`) |
 | ROCm | 7.14 (`/opt/rocm`) — used by the demos, not by the launcher |
 | Desktop | GNOME (Wayland). `DISPLAY` or `WAYLAND_DISPLAY` must be set |
 
@@ -64,9 +64,10 @@ Ubuntu 26.04's system Python 3.14 is marked `EXTERNALLY-MANAGED` (PEP 668) and
 `ensurepip` is disabled, so the launcher runs from its own venv:
 
 ```bash
+uv python install 3.14
 cd ~/demolauncher
-uv venv --python 3.14 .venv
-uv pip install --python .venv/bin/python "flet[all]"
+uv venv --managed-python --python 3.14 .venv
+uv pip install --python .venv/bin/python flet flet-desktop
 ```
 
 Verify:
@@ -75,8 +76,9 @@ Verify:
 .venv/bin/python -c "import flet, flet_desktop; print(flet.__version__)"   # -> 0.86.5
 ```
 
-> Install `flet[all]`, not plain `flet`. Rendering the desktop window needs
-> `flet_desktop`, which the base package does not include.
+> Install `flet-desktop` explicitly. Rendering the desktop window needs it, and
+> the base `flet` package would otherwise download it on first launch — which
+> fails silently when the launcher is started from the dock.
 
 `.venv` is gitignored, so a fresh clone has to run this step again.
 
@@ -86,6 +88,12 @@ upgrade already broke this tool once — flet had been pip-installed into
 `/usr/local/lib/python3.12/dist-packages`, and when `python3` became 3.14 the
 whole 3.12 tree stopped being visible. Every other project on this machine
 (`~/AI2048`, `~/LLaVA-NPU`) uses a venv for the same reason.
+
+Why a `uv`-managed interpreter rather than `/usr/bin/python3.14`: a venv built
+against the system interpreter is only half a fix. The next release upgrade
+replaces `/usr/bin/python3.x` and leaves the venv with a dangling symlink,
+reproducing the same breakage. The managed interpreter under
+`~/.local/share/uv/python` is not touched by distro upgrades.
 
 ### 2. Point the desktop entry at the venv
 
