@@ -104,10 +104,8 @@ interpreter, not `python3`:
 Exec=/home/test/demolauncher/.venv/bin/python /home/test/demolauncher/demo_launcher.py
 ```
 
-Both paths must be absolute — the desktop entry does not expand `~`. Note that
-on the NucBox the working copy sits in `~/demolanucher` (misspelled), not
-`~/demolauncher`, so the `Exec` line there reads `/home/test/demolanucher/...`.
-Check with `pwd` before pasting.
+Both paths must be absolute — the desktop entry does not expand `~`. Check with
+`pwd` before pasting.
 
 After editing, refresh the desktop database:
 

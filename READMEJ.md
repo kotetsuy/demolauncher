@@ -100,8 +100,6 @@ Exec=/home/test/demolauncher/.venv/bin/python /home/test/demolauncher/demo_launc
 ```
 
 パスは 2 つとも絶対パスで書くこと（デスクトップエントリは `~` を展開しない）。
-なお NucBox 上の作業コピーは `~/demolauncher` ではなく `~/demolanucher`（綴り違い）に
-置かれているため、実機の `Exec` 行は `/home/test/demolanucher/...` になる。
 貼り付ける前に `pwd` で確認すること。
 
 編集後はデスクトップデータベースを更新する:
