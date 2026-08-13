@@ -1,6 +1,6 @@
 # TECHNICAL.md — Demo Launcher internals
 
-Subject: `demo_launcher.py` (single file, 391 lines)
+Subject: `demo_launcher.py` (single file, 417 lines)
 For the user-facing guide see [`README.md`](./README.md); for how this design
 came about see [`BUG.md`](./BUG.md).
 日本語版は [`TECHNICALJ.md`](./TECHNICALJ.md)。
@@ -14,10 +14,10 @@ One file, no local modules, in four layers top to bottom.
 | Layer | Lines | Contents |
 |---|---|---|
 | Single-instance guard | 16–31 | Multiple-launch prevention via an abstract UNIX socket |
-| Configuration | 38–72 | The `DEMOS` dict — the only place to add or change a demo |
-| Low-level helpers | 80–128 | HTTP liveness, port-release waiting, process-group kill |
-| Demo control | 134–209 | `stop_demo` / `start_demo` / `wait_ready` / `stop_all_demos` |
-| UI | 212–383 | The flet GUI and its event handlers |
+| Configuration | 38–91 | The `DEMOS` dict — the only place to add or change a demo |
+| Low-level helpers | 99–147 | HTTP liveness, port-release waiting, process-group kill |
+| Demo control | 153–228 | `stop_demo` / `start_demo` / `wait_ready` / `stop_all_demos` |
+| UI | 231–410 | The flet GUI and its event handlers |
 
 Nothing here touches what the demos are made of (llama-server, tmux, Chrome,
 ROCm). The launcher knows exactly three things: **that `start_all.sh` and
@@ -30,39 +30,57 @@ demo-side rewrites do not propagate into this tool.
 ## 2. The `DEMOS` schema
 
 ```python
-"AI2048": {
-    "dir":           HOME / "AI2048",                 # where start_all.sh / stop_all.sh live
-    "ports":         [8000, 8009, 8080, 9222],        # ports to wait on after stopping
-    "ready_url":     "http://localhost:8000/status",  # polled to detect a completed start
+"AIjukebox": {
+    "dir":           HOME / "AIjukebox",              # where start_all.sh / stop_all.sh live
+    "ports":         [1234, 8080, 8100, 8765, 50021], # ports to wait on after stopping
+    "ready_url":     "http://localhost:8765/",        # polled to detect a completed start
     "ready_timeout": 600,                             # how long to wait for ready, in seconds
 },
 ```
 
 - **`ports`** must be the *complete* set of ports the demo binds. Miss one and
   `_wait_ports_free()` returns early, letting the next demo start into a bind
-  conflict — exactly what happened with LLaVA-NPU's NPU sidecar on `:8082`
-- **`ready_url`** should point at whatever comes up *last*. AIassistant,
-  EarthTourGuide and AI2048 all use `:8000/status` because that endpoint only
-  starts responding once llama has finished loading
+  conflict — exactly what happened with LLaVA-NPU's NPU sidecar on `:8082`.
+  Non-TCP-server ports count too: AIjukebox and AIradio list Liquidsoap's
+  telnet port `:1234` and VOICEVOX's container-published `:50021`
+- **`ready_url`** should point at whatever comes up *last*. AIassistant and
+  EarthTourGuide use `:8000/status` because that endpoint only starts responding
+  once llama has finished loading; AIjukebox and AIradio use the display server
+  on `:8765`, which `start_all.sh` starts after llama, Icecast and Liquidsoap
 - **`ready_timeout`** is dictated by llama-server's model load time. LLaVA-NPU
   gets away with 120 s because its `ready_url` is the web server (`:8080/`),
   which does not wait for llama
 
+An endpoint is only usable as `ready_url` if it stays *unresponsive* until the
+service is genuinely up. `_http_ok()` counts any HTTP status as alive, 5xx
+included, so llama-server's `/health` — which answers `503 Loading model` from
+the moment it binds — cannot be a readiness signal. That is why AIreversi is
+judged on the game server (`:8000/`) and not on Player B's `:8081/health`, and
+it means the AIreversi screen appears while the model is still loading.
+
 ### Port contention matrix
 
-| Port | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AI2048 |
-|---|---|---|---|---|---|
-| 8000 | ● | | ● | ● | ● |
-| 8001 | ● | | | ● | |
-| 8002–8003 | | | | ● | |
-| 8009 | | | | | ● |
-| 8080 | ● | ● | | ● | ● |
-| 8081–8082 | | ● | | | |
-| 9222 | | | | | ● |
+| Port | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AIjukebox | AIradio | AIreversi |
+|---|---|---|---|---|---|---|---|
+| 1234 | | | | | ● | ● | |
+| 8000 | ● | | ● | ● | | | ● |
+| 8001 | ● | | | ● | | | |
+| 8002–8003 | | | | ● | | | |
+| 8080 | ● | ● | | ● | ● | ● | |
+| 8081 | | ● | | | | | ● |
+| 8082 | | ● | | | | | |
+| 8100 | | | | | ● | ● | |
+| 8765 | | | | | ● | ● | |
+| 50021 | | | | | ● | ● | |
 
-Four demos contend for `:8000` and four for `:8080`. **Mutually exclusive
+Four demos contend for `:8000` and five for `:8080`. **Mutually exclusive
 startup is a hard design requirement** — "run several demos at once" is not an
 option that exists.
+
+`:50021` is VOICEVOX ENGINE inside Docker, not a process the launcher could
+signal. It is released only because AIjukebox's and AIradio's `stop_all.sh`
+run `docker stop voicevox_engine` themselves — the launcher's port wait just
+observes the result.
 
 ---
 
@@ -154,7 +172,7 @@ Compared to a lock file:
 The global reference in `_instance_lock_socket` exists to stop the socket from
 being garbage-collected, which would silently release the lock. Do not drop it.
 
-The check runs at import time (line 386); if another instance holds the lock the
+The check runs at import time (line 412); if another instance holds the lock the
 process prints a message and leaves via `SystemExit(0)`. It is deliberately not
 an error, so that a duplicate autostart invocation does not litter the logs.
 
@@ -183,6 +201,19 @@ what normally runs.
 `set_status(busy=True)` disables every entry in `action_buttons`, because a
 start thread running alongside a stop thread would target ports that are still
 being torn down.
+
+### Layout
+
+Nine buttons no longer fit in the 460×720 window, so the outer `Column` scrolls:
+
+```python
+ft.Column([...], scroll=ft.ScrollMode.AUTO, expand=True)
+```
+
+`expand=True` is required, not decorative. Without it the `Column` is sized by
+its children, is never taller than what it contains, and therefore never has
+anything to scroll — the overflow is clipped instead. `expand=True` pins it to
+the page height and makes the surplus scrollable.
 
 ---
 

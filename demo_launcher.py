@@ -63,11 +63,30 @@ DEMOS = {
         "ready_url": "http://localhost:8000/status",
         "ready_timeout": 600,
     },
-    "AI2048": {
-        "dir": HOME / "AI2048",
-        "ports": [8000, 8009, 8080, 9222],
-        "ready_url": "http://localhost:8000/status",
+    # AIjukebox / AIradio は構成が同じ（VOICEVOX docker :50021 / llama-server :8080 /
+    # Icecast :8100 / Liquidsoap telnet :1234 / 表示系 :8765）。表示系は
+    # start_all.sh の最後に立ち上がるので、ready 判定に使うのがちょうどよい。
+    "AIjukebox": {
+        "dir": HOME / "AIjukebox",
+        "ports": [1234, 8080, 8100, 8765, 50021],
+        "ready_url": "http://localhost:8765/",
         "ready_timeout": 600,
+    },
+    "AIradio": {
+        "dir": HOME / "AIradio",
+        "ports": [1234, 8080, 8100, 8765, 50021],
+        # llama-server の待ち (600s) の後に BGM 生成とフィラー準備が入るぶん長め。
+        "ready_url": "http://localhost:8765/",
+        "ready_timeout": 900,
+    },
+    # ゲームサーバ :8000 は数秒で応答する。Player B の llama-server (:8081) は
+    # 裏で読み込みが続くが、/health は起動直後に 503 を返してしまい ready 判定に
+    # 使えないため、画面が出た時点を起動完了とみなす。
+    "AIreversi": {
+        "dir": HOME / "AIreversi",
+        "ports": [8000, 8081],
+        "ready_url": "http://localhost:8000/",
+        "ready_timeout": 360,
     },
 }
 
@@ -363,7 +382,9 @@ def main(page: ft.Page):
                 btn("LLaVA-NPU を起動",     make_start_handler("LLaVA-NPU"),    "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("RealtimeDepth を起動", make_start_handler("RealtimeDepth"), "#6a1b9a", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("EarthTourGuide を起動", make_start_handler("EarthTourGuide"), "#00838f", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("AI2048 を起動",        make_start_handler("AI2048"),         "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("AIjukebox を起動",     make_start_handler("AIjukebox"),     "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("AIradio を起動",       make_start_handler("AIradio"),       "#ad1457", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("AIreversi を起動",     make_start_handler("AIreversi"),     "#37474f", ft.Icons.PLAY_ARROW_ROUNDED),
 
                 ft.Divider(color="#333355", height=24),
 
@@ -376,6 +397,11 @@ def main(page: ft.Page):
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=12,
+            # デモが増えてボタン列がウィンドウ高を超えるため縦スクロールさせる。
+            # expand=True でページ高いっぱいに広げないと Column の高さが
+            # 中身なりになり、スクロール領域にならない。
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
         )
     )
 

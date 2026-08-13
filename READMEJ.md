@@ -6,7 +6,7 @@ NucBox EVO X2 (Ryzen AI MAX+ 395 / Radeon 8060S) 上の各種 AI デモを、
 展示・デモ会場での運用を想定しており、次の 3 点を保証することが目的:
 
 1. **同時に 1 つのデモしか動かない** — デモ間でポートが重複しているため
-   （`:8000` と `:8080` は 3〜4 デモが取り合う）、起動前に必ず全デモを停止する
+   （`:8000` は 4 デモ、`:8080` は 5 デモが取り合う）、起動前に必ず全デモを停止する
 2. **「起動しました」が実態と一致する** — スクリプトを投げっぱなしにせず、
    各デモのヘルスチェック URL が応答するまで待ってからステータスを更新する
 3. **GUI から電源が落とせる** — 会場で端末を触らずに片付けられる
@@ -25,7 +25,9 @@ English versions: [`README.md`](./README.md) / [`TECHNICAL.md`](./TECHNICAL.md)
 | LLaVA-NPU | `~/LLaVA-NPU` | 8080, 8081, 8082 | `http://localhost:8080/` | 120s |
 | RealtimeDepth | `~/RealtimeDepth` | 8000 | `http://localhost:8000/` | 180s |
 | EarthTourGuide | `~/EarthTourGuide` | 8000〜8003, 8080 | `http://localhost:8000/status` | 600s |
-| AI2048 | `~/AI2048` | 8000, 8009, 8080, 9222 | `http://localhost:8000/status` | 600s |
+| AIjukebox | `~/AIjukebox` | 1234, 8080, 8100, 8765, 50021 | `http://localhost:8765/` | 600s |
+| AIradio | `~/AIradio` | 1234, 8080, 8100, 8765, 50021 | `http://localhost:8765/` | 900s |
+| AIreversi | `~/AIreversi` | 8000, 8081 | `http://localhost:8000/` | 360s |
 
 各デモのディレクトリに `start_all.sh` と `stop_all.sh` があることが前提。
 ランチャーはこの 2 本のシェルスクリプトを叩くだけで、デモの中身には関与しない。
@@ -33,6 +35,17 @@ English versions: [`README.md`](./README.md) / [`TECHNICAL.md`](./TECHNICAL.md)
 > **LLaVA について**: 現行は `~/LLaVA-NPU` (kotetsuy/LLaVA-NPU)。
 > YOLO11m を XDNA2 NPU 上で回すサイドカーが `config.yaml` の `npu.port`（既定 8082）で
 > 待ち受けるため、旧 `~/LLaVA` より使用ポートが 1 つ多い。
+
+> **AIjukebox / AIradio について**: 2 つとも構成が同じで、VOICEVOX ENGINE (docker,
+> `:50021`)、llama-server (`:8080`)、Icecast (`:8100`)、Liquidsoap の telnet 制御
+> (`:1234`)、表示系 (`:8765`) を使う。`start_all.sh` の最後に立ち上がるのが表示系
+> なので、そこを起動完了の判定に使っている。`stop_all.sh` が docker コンテナも
+> 止めるため、`:50021` もデモ間できちんと解放される。
+
+> **AIreversi について**: `:8000` がゲームサーバ、`:8081` が Player B の
+> llama-server。判定は `:8000/` のみで行う — llama-server の `/health` はモデル
+> ロード中に 503 を返し、ランチャーは HTTP 応答があれば生きているとみなすため
+> 判定には使えない。したがって Player B が指せるようになる前に画面が出る。
 
 ---
 
@@ -82,7 +95,7 @@ uv pip install --python .venv/bin/python flet flet-desktop
 ランチャー専用のインタプリタに固定する方式だから。24.04 → 26.04 のアップグレードで
 このツールは一度壊れている。flet を `/usr/local/lib/python3.12/dist-packages` に
 pip で入れていたため、`python3` が 3.14 になった時点で 3.12 のツリーごと
-見えなくなった。このマシンの他プロジェクト（`~/AI2048`、`~/LLaVA-NPU`）も
+見えなくなった。このマシンの他プロジェクト（`~/AIjukebox`、`~/LLaVA-NPU`）も
 同じ理由で venv を使っている。
 
 `/usr/bin/python3.14` ではなく `uv` 管理のインタプリタを使う理由は、システムの
@@ -134,7 +147,7 @@ GNOME のアプリ一覧から「Demo Launcher」を選んでもよい。デス�
 
 - **各デモのボタン** — 全デモを停止 → ポート解放を待つ → 対象を起動 → ready まで待機。
   同じボタンを 2 回押しても問題ない（自分自身も停止対象に含まれる）
-- **全て停止** — 5 デモすべてに `stop_all.sh` を流す。1 つ失敗しても残りは止め、
+- **全て停止** — 7 デモすべてに `stop_all.sh` を流す。1 つ失敗しても残りは止め、
   失敗したデモ名をまとめて表示する
 - **PC 電源オフ** — 確認ダイアログ → 全デモ停止 → `sudo -n shutdown -h now`
 
@@ -178,7 +191,8 @@ llama-server のモデルロードは初回や大きい context 設定だと数�
 
 ```bash
 tmux ls
-ss -ltnp | grep -E ':(8000|8001|8002|8003|8009|8080|8081|8082|9222)'
+docker ps                    # AIjukebox / AIradio は VOICEVOX が残ることがある
+ss -ltnp | grep -E ':(1234|800[0-3]|808[0-2]|8100|8765|50021)'
 ```
 
 ---

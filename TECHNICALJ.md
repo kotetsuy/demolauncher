@@ -1,6 +1,6 @@
 # TECHNICALJ.md — Demo Launcher 内部設計
 
-対象: `demo_launcher.py`（単一ファイル、391 行）
+対象: `demo_launcher.py`（単一ファイル、417 行）
 利用者向けの説明は [`READMEJ.md`](./READMEJ.md)、
 この設計に至った経緯は [`BUG.md`](./BUG.md) を参照。
 English version: [`TECHNICAL.md`](./TECHNICAL.md)
@@ -14,10 +14,10 @@ English version: [`TECHNICAL.md`](./TECHNICAL.md)
 | 層 | 行 | 内容 |
 |---|---|---|
 | 単一インスタンス制御 | 16–31 | abstract UNIX socket による多重起動防止 |
-| 設定 | 38–72 | `DEMOS` 辞書。デモの追加・変更はここだけ |
-| 低レベルヘルパ | 80–128 | HTTP 生存確認、ポート解放待ち、プロセスグループ kill |
-| デモ制御 | 134–209 | `stop_demo` / `start_demo` / `wait_ready` / `stop_all_demos` |
-| UI | 212–383 | flet の GUI とイベントハンドラ |
+| 設定 | 38–91 | `DEMOS` 辞書。デモの追加・変更はここだけ |
+| 低レベルヘルパ | 99–147 | HTTP 生存確認、ポート解放待ち、プロセスグループ kill |
+| デモ制御 | 153–228 | `stop_demo` / `start_demo` / `wait_ready` / `stop_all_demos` |
+| UI | 231–410 | flet の GUI とイベントハンドラ |
 
 デモの中身（llama-server, tmux, Chrome, ROCm など）には一切関与しない。
 ランチャーが知っているのは **`start_all.sh` / `stop_all.sh` を叩くこと**、
@@ -29,38 +29,56 @@ English version: [`TECHNICAL.md`](./TECHNICAL.md)
 ## 2. `DEMOS` スキーマ
 
 ```python
-"AI2048": {
-    "dir":           HOME / "AI2048",              # start_all.sh / stop_all.sh の置き場
-    "ports":         [8000, 8009, 8080, 9222],     # 停止後に解放を待つポート
-    "ready_url":     "http://localhost:8000/status",  # 起動完了の判定に叩く URL
-    "ready_timeout": 600,                          # ready 待ちの上限（秒）
+"AIjukebox": {
+    "dir":           HOME / "AIjukebox",              # start_all.sh / stop_all.sh の置き場
+    "ports":         [1234, 8080, 8100, 8765, 50021], # 停止後に解放を待つポート
+    "ready_url":     "http://localhost:8765/",        # 起動完了の判定に叩く URL
+    "ready_timeout": 600,                             # ready 待ちの上限（秒）
 },
 ```
 
 - **`ports`** は「このデモが bind するポートの全集合」。1 つでも漏れると
   `_wait_ports_free()` が早期に True を返し、次のデモが bind 衝突する
-  （LLaVA-NPU の NPU サイドカー `:8082` がまさにこれで漏れていた）
+  （LLaVA-NPU の NPU サイドカー `:8082` がまさにこれで漏れていた）。
+  Web サーバ以外も対象で、AIjukebox / AIradio は Liquidsoap の telnet 制御
+  `:1234` と、docker が publish する VOICEVOX の `:50021` も並べている
 - **`ready_url`** は「そのデモの中で最も遅く立ち上がるもの」を指すのが望ましい。
-  AIassistant / EarthTourGuide / AI2048 が `:8000/status` を使っているのは、
-  この endpoint が llama のロード完了後に初めて応答するため
+  AIassistant / EarthTourGuide が `:8000/status` を使っているのは、
+  この endpoint が llama のロード完了後に初めて応答するため。
+  AIjukebox / AIradio は llama・Icecast・Liquidsoap の後に起動する表示系
+  `:8765` を使う
 - **`ready_timeout`** は llama-server のモデルロード時間で決まる。
   LLaVA-NPU だけ 120s と短いのは、`ready_url` が Web サーバ (`:8080/`) で、
   llama のロード完了を待たないため
 
+`ready_url` に使えるのは「サービスが本当に立ち上がるまで応答しない」endpoint に
+限られる。`_http_ok()` は 5xx を含むあらゆる HTTP 応答を「生きている」と判定する
+ため、bind した瞬間から `503 Loading model` を返す llama-server の `/health` は
+判定に使えない。AIreversi の判定を Player B の `:8081/health` ではなくゲーム
+サーバ `:8000/` にしているのはこのためで、結果としてモデルのロード中に画面が出る。
+
 ### ポート衝突マトリクス
 
-| ポート | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AI2048 |
-|---|---|---|---|---|---|
-| 8000 | ● | | ● | ● | ● |
-| 8001 | ● | | | ● | |
-| 8002–8003 | | | | ● | |
-| 8009 | | | | | ● |
-| 8080 | ● | ● | | ● | ● |
-| 8081–8082 | | ● | | | |
-| 9222 | | | | | ● |
+| ポート | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AIjukebox | AIradio | AIreversi |
+|---|---|---|---|---|---|---|---|
+| 1234 | | | | | ● | ● | |
+| 8000 | ● | | ● | ● | | | ● |
+| 8001 | ● | | | ● | | | |
+| 8002–8003 | | | | ● | | | |
+| 8080 | ● | ● | | ● | ● | ● | |
+| 8081 | | ● | | | | | ● |
+| 8082 | | ● | | | | | |
+| 8100 | | | | | ● | ● | |
+| 8765 | | | | | ● | ● | |
+| 50021 | | | | | ● | ● | |
 
-`:8000` を 4 デモ、`:8080` を 4 デモが取り合う。**排他起動が設計上の必須要件**で、
+`:8000` を 4 デモ、`:8080` を 5 デモが取り合う。**排他起動が設計上の必須要件**で、
 「複数デモの同時起動」は選択肢として存在しない。
+
+`:50021` は docker 上の VOICEVOX ENGINE で、ランチャーからシグナルを送れる
+プロセスではない。解放されるのは AIjukebox / AIradio の `stop_all.sh` が自前で
+`docker stop voicevox_engine` を実行するからで、ランチャーのポート待ちは
+その結果を見ているだけ。
 
 ---
 
@@ -151,7 +169,7 @@ _SINGLE_INSTANCE_ADDR = "\0demo_launcher_single_instance"
 `_instance_lock_socket` にグローバル参照を残しているのは、GC でソケットが閉じられて
 ロックが解けるのを防ぐため。この参照を消してはいけない。
 
-判定は `import` 時（386 行）に行い、既に動いていればメッセージを出して
+判定は `import` 時（412 行）に行い、既に動いていればメッセージを出して
 `SystemExit(0)` で抜ける。エラー扱いにしないのは、autostart から二重に呼ばれても
 ログにエラーを残さないため。
 
@@ -178,6 +196,20 @@ def run_bg(task):
 
 `set_status(busy=True)` は `action_buttons` 全部を `disabled` にする。
 start と stop のスレッドが並走すると、停止途中のポートに向かって起動が走るため。
+
+### レイアウト
+
+ボタンが 9 個になり 460×720 のウィンドウに収まらなくなったため、外側の
+`Column` をスクロールさせている:
+
+```python
+ft.Column([...], scroll=ft.ScrollMode.AUTO, expand=True)
+```
+
+`expand=True` は飾りではなく必須。これが無いと `Column` の高さが中身なりに
+決まり、常に「収まっている」状態になるのでスクロール領域が発生せず、
+はみ出した分はクリップされるだけになる。`expand=True` でページ高いっぱいに
+固定して初めて、あふれた分がスクロール対象になる。
 
 ---
 
