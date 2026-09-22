@@ -7,6 +7,7 @@ import socket
 import time
 import urllib.request
 import urllib.error
+import webbrowser
 from pathlib import Path
 
 HOME = Path.home()
@@ -35,6 +36,7 @@ def acquire_single_instance() -> bool:
 #   ports        : このデモが bind する Web ポート（停止後の解放待ちに使う）
 #   ready_url    : 起動完了の判定に叩く URL（応答すれば ready）
 #   ready_timeout: ready 待ちの最大秒数（モデルロード時間を見込む）
+#   browser_url  : 指定時のみ、起動完了後にランチャーが開く URL
 DEMOS = {
     "AIassistant": {
         "dir": HOME / "AIassistant",
@@ -87,6 +89,15 @@ DEMOS = {
         "ports": [8000, 8081],
         "ready_url": "http://localhost:8000/",
         "ready_timeout": 360,
+    },
+    "3dslam3": {
+        "dir": HOME / "3dslam3",
+        "ports": [8080],
+        # スクリプト自身が /api/health と ROCm ウォームアップを検証する。
+        # 既定の180秒に終了処理の余裕を加え、正常終了を待つ。
+        "ready_url": None,
+        "ready_timeout": 210,
+        "browser_url": "http://127.0.0.1:8080/",
     },
 }
 
@@ -273,6 +284,9 @@ def main(page: ft.Page):
                     set_status(f"{name} のサービス起動を待機中...", "#ffd54f", busy=True)
                     ok, err = wait_ready(name, proc)
                     if ok:
+                        browser_url = DEMOS[name].get("browser_url")
+                        if browser_url:
+                            webbrowser.open(browser_url)
                         set_status(f"{name} を起動しました", "#81c784")
                     else:
                         set_status(f"{name} の起動に失敗: {err}", "#ef5350")
@@ -385,6 +399,7 @@ def main(page: ft.Page):
                 btn("AIjukebox を起動",     make_start_handler("AIjukebox"),     "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("AIradio を起動",       make_start_handler("AIradio"),       "#ad1457", ft.Icons.PLAY_ARROW_ROUNDED),
                 btn("AIreversi を起動",     make_start_handler("AIreversi"),     "#37474f", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("3dslam3 を起動",       make_start_handler("3dslam3"),       "#00695c", ft.Icons.PLAY_ARROW_ROUNDED),
 
                 ft.Divider(color="#333355", height=24),
 

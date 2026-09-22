@@ -6,7 +6,7 @@ A flet desktop GUI that starts and stops the AI demos on the NucBox EVO X2
 Built for running demos at events, it guarantees three things:
 
 1. **Only one demo runs at a time** — the demos overlap heavily on ports
-   (`:8000` is contended by four demos and `:8080` by five), so every start
+   (`:8000` is contended by four demos and `:8080` by six), so every start
    stops all demos first
 2. **"Started" means it actually started** — instead of firing the script and
    forgetting it, the launcher polls each demo's health-check URL and only then
@@ -31,6 +31,7 @@ this design came out of, see [`BUG.md`](./BUG.md).
 | AIjukebox | `~/AIjukebox` | 1234, 8080, 8100, 8765, 50021 | `http://localhost:8765/` | 600s |
 | AIradio | `~/AIradio` | 1234, 8080, 8100, 8765, 50021 | `http://localhost:8765/` | 900s |
 | AIreversi | `~/AIreversi` | 8000, 8081 | `http://localhost:8000/` | 360s |
+| 3dslam3 | `~/3dslam3` | 8080 | Successful script exit (ROCm ready) | 210s |
 
 Each demo directory must contain `start_all.sh` and `stop_all.sh`. The launcher
 only invokes those two shell scripts; it knows nothing about what the demos do.
@@ -46,6 +47,11 @@ only invokes those two shell scripts; it knows nothing about what the demos do.
 > `:8765` is the readiness check because it is the last thing `start_all.sh`
 > brings up. Their `stop_all.sh` stops the Docker container too, so `:50021`
 > really is released between demos.
+
+> **About 3dslam3**: `start_all.sh` verifies `/api/health` and ROCm/DA3
+> warmup. The launcher waits for successful script completion, then opens
+> `http://127.0.0.1:8080/` in the default browser. This configuration uses
+> the default port 8080; do not override `PORT` in the launch environment.
 
 > **About AIreversi**: `:8000` is the game server and `:8081` is Player B's
 > llama-server. Readiness is judged on `:8000/` alone — llama-server's
@@ -155,7 +161,7 @@ command via the desktop entry.
 - **Demo buttons** — stop every demo, wait for the ports to be released, start
   the target, then wait until it is ready. Pressing the same button twice is
   safe, because the target is included in the stop set
-- **全て停止 (Stop all)** — runs `stop_all.sh` for all seven demos. If one fails
+- **全て停止 (Stop all)** — runs `stop_all.sh` for all eight demos. If one fails
   the rest are still stopped, and the failures are reported together
 - **PC 電源オフ (Power off)** — confirmation dialog, stop all demos, then
   `sudo -n shutdown -h now`

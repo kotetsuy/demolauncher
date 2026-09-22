@@ -60,20 +60,20 @@ it means the AIreversi screen appears while the model is still loading.
 
 ### Port contention matrix
 
-| Port | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AIjukebox | AIradio | AIreversi |
-|---|---|---|---|---|---|---|---|
-| 1234 | | | | | ● | ● | |
-| 8000 | ● | | ● | ● | | | ● |
-| 8001 | ● | | | ● | | | |
-| 8002–8003 | | | | ● | | | |
-| 8080 | ● | ● | | ● | ● | ● | |
-| 8081 | | ● | | | | | ● |
-| 8082 | | ● | | | | | |
-| 8100 | | | | | ● | ● | |
-| 8765 | | | | | ● | ● | |
-| 50021 | | | | | ● | ● | |
+| Port | AIassistant | LLaVA-NPU | RealtimeDepth | EarthTourGuide | AIjukebox | AIradio | AIreversi | 3dslam3 |
+|---|---|---|---|---|---|---|---|---|
+| 1234 | | | | | ● | ● | | |
+| 8000 | ● | | ● | ● | | | ● | |
+| 8001 | ● | | | ● | | | | |
+| 8002–8003 | | | | ● | | | | |
+| 8080 | ● | ● | | ● | ● | ● | | ● |
+| 8081 | | ● | | | | | ● | |
+| 8082 | | ● | | | | | | |
+| 8100 | | | | | ● | ● | | |
+| 8765 | | | | | ● | ● | | |
+| 50021 | | | | | ● | ● | | |
 
-Four demos contend for `:8000` and five for `:8080`. **Mutually exclusive
+Four demos contend for `:8000` and six for `:8080`. **Mutually exclusive
 startup is a hard design requirement** — "run several demos at once" is not an
 option that exists.
 
@@ -204,7 +204,7 @@ being torn down.
 
 ### Layout
 
-Nine buttons no longer fit in the 460×720 window, so the outer `Column` scrolls:
+Ten buttons no longer fit in the 460×720 window, so the outer `Column` scrolls:
 
 ```python
 ft.Column([...], scroll=ft.ScrollMode.AUTO, expand=True)
