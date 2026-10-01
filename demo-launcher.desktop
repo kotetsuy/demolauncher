@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Demo Launcher
+Comment=Start and stop local AI demos
+Comment[ja]=ローカルAIデモの起動・停止
+Exec=/home/test/demolauncher/.venv/bin/python /home/test/demolauncher/demo_launcher.py
+Path=/home/test/demolauncher
+Icon=/home/test/demolauncher/icon.svg
+Terminal=false
+Categories=Utility;
+StartupNotify=false

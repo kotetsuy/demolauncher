@@ -177,6 +177,11 @@ def stop_demo(name: str):
 
 def start_demo(name: str) -> subprocess.Popen:
     """他デモも対象デモも一旦止めてから起動する（BUG-1: 同一デモ再起動 / BUG-2 / BUG-3）。"""
+    directory = DEMOS[name]["dir"]
+    script = directory / "start_all.sh"
+    if not script.is_file():
+        raise FileNotFoundError(f"start_all.sh が見つかりません: {script}")
+
     # 対象自身も含め全デモを停止（BUG-1: 同じボタン2回押しで already running 失敗するのを防ぐ）。
     for demo_name in DEMOS:
         try:
@@ -187,11 +192,6 @@ def start_demo(name: str) -> subprocess.Popen:
 
     # ポート解放を待ってから起動（BUG-2: bind 失敗 → ready タイムアウト → Chrome 開かずを防ぐ）。
     _wait_ports_free(name)
-
-    directory = DEMOS[name]["dir"]
-    script = directory / "start_all.sh"
-    if not script.exists():
-        raise FileNotFoundError(f"start_all.sh が見つかりません: {script}")
 
     # start_new_session=True で独立したプロセスグループにし、後で killpg できるようにする（BUG-3）。
     proc = subprocess.Popen(
@@ -255,15 +255,25 @@ def main(page: ft.Page):
     )
     progress = ft.ProgressBar(visible=False, width=380, color="#4fc3f7", bgcolor="#333355")
 
-    action_buttons: list[ft.FilledButton] = []
+    action_buttons: list[tuple[ft.FilledButton, str | None]] = []
+
+    def update_button(button, demo_name, busy=False):
+        missing = (
+            demo_name is not None
+            and not (DEMOS[demo_name]["dir"] / "start_all.sh").is_file()
+        )
+        button.disabled = busy or missing
+        button.tooltip = "未導入（start_all.sh が見つかりません）" if missing else None
+        for control in button.content.controls:
+            control.color = "#888888" if button.disabled else "white"
 
     def set_status(msg: str, color="#888888", busy=False):
         status.value = msg
         status.color = color
         progress.visible = busy
         # busy 中はボタンを無効化して start/stop の同時実行を防ぐ（BUG-9）。
-        for b in action_buttons:
-            b.disabled = busy
+        for button, demo_name in action_buttons:
+            update_button(button, demo_name, busy)
         page.update()
 
     def run_bg(task):
@@ -358,7 +368,7 @@ def main(page: ft.Page):
         )
         page.show_dialog(dlg)
 
-    def btn(label: str, handler, bg: str, icon_name: str):
+    def btn(label: str, handler, bg: str, icon_name: str, demo_name: str | None = None):
         button = ft.FilledButton(
             content=ft.Row(
                 [
@@ -374,6 +384,7 @@ def main(page: ft.Page):
             height=54,
             style=ft.ButtonStyle(
                 bgcolor={
+                    ft.ControlState.DISABLED: "#333333",
                     ft.ControlState.DEFAULT: bg,
                     ft.ControlState.HOVERED:  bg,
                     ft.ControlState.PRESSED:  bg,
@@ -382,7 +393,8 @@ def main(page: ft.Page):
                 elevation={"default": 3, "hovered": 6},
             ),
         )
-        action_buttons.append(button)
+        update_button(button, demo_name)
+        action_buttons.append((button, demo_name))
         return button
 
     page.add(
@@ -392,14 +404,14 @@ def main(page: ft.Page):
                 ft.Text("デモ起動管理ツール", size=12, color="#666688"),
                 ft.Divider(color="#333355", height=24),
 
-                btn("AIassistant を起動",       make_start_handler("AIassistant"),      "#2e7d32", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("LLaVA-NPU を起動",     make_start_handler("LLaVA-NPU"),    "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("RealtimeDepth を起動", make_start_handler("RealtimeDepth"), "#6a1b9a", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("EarthTourGuide を起動", make_start_handler("EarthTourGuide"), "#00838f", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("AIjukebox を起動",     make_start_handler("AIjukebox"),     "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("AIradio を起動",       make_start_handler("AIradio"),       "#ad1457", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("AIreversi を起動",     make_start_handler("AIreversi"),     "#37474f", ft.Icons.PLAY_ARROW_ROUNDED),
-                btn("3dslam3 を起動",       make_start_handler("3dslam3"),       "#00695c", ft.Icons.PLAY_ARROW_ROUNDED),
+                btn("AIassistant を起動",       make_start_handler("AIassistant"),      "#2e7d32", ft.Icons.PLAY_ARROW_ROUNDED, "AIassistant"),
+                btn("LLaVA-NPU を起動",     make_start_handler("LLaVA-NPU"),    "#1565c0", ft.Icons.PLAY_ARROW_ROUNDED, "LLaVA-NPU"),
+                btn("RealtimeDepth を起動", make_start_handler("RealtimeDepth"), "#6a1b9a", ft.Icons.PLAY_ARROW_ROUNDED, "RealtimeDepth"),
+                btn("EarthTourGuide を起動", make_start_handler("EarthTourGuide"), "#00838f", ft.Icons.PLAY_ARROW_ROUNDED, "EarthTourGuide"),
+                btn("AIjukebox を起動",     make_start_handler("AIjukebox"),     "#4527a0", ft.Icons.PLAY_ARROW_ROUNDED, "AIjukebox"),
+                btn("AIradio を起動",       make_start_handler("AIradio"),       "#ad1457", ft.Icons.PLAY_ARROW_ROUNDED, "AIradio"),
+                btn("AIreversi を起動",     make_start_handler("AIreversi"),     "#37474f", ft.Icons.PLAY_ARROW_ROUNDED, "AIreversi"),
+                btn("3dslam3 を起動",       make_start_handler("3dslam3"),       "#00695c", ft.Icons.PLAY_ARROW_ROUNDED, "3dslam3"),
 
                 ft.Divider(color="#333355", height=24),
 
